@@ -1,0 +1,299 @@
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аспаз Мастер — Крафтовый Маркетплейс</title>
+    <!-- Tailwind CSS для дизайна -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue.js для реактивности (идеально для standalone HTML-файлов) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-stone-100 font-sans antialiased text-amber-950">
+<div id="app" class="min-h-screen bg-stone-50 flex flex-col max-w-md mx-auto shadow-2xl relative pb-20">
+    <header v-if="['home', 'chat', 'cart', 'profile'].includes(currentTab)" class="bg-white border-b border-orange-100 p-4 sticky top-0 z-40 shadow-sm">
+        <div class="flex flex-col gap-2">
+            <h1 class="text-xl font-bold text-amber-950 tracking-wide">
+                {{ titles[currentTab] }}
+            </h1>
+            <input v-if="currentTab === 'home'"
+                   type="text"
+                   placeholder="Поиск еды, пекарей, мясников..."
+                   v-model="searchQuery"
+                   class="w-full bg-stone-50 border border-amber-100 px-4 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-600" />
+        </div>
+    </header>
+    <main class="flex-1 p-4 overflow-y-auto">
+        <div v-if="currentTab === 'home'" class="space-y-6">
+            <!-- Скролл категорий -->
+            <div class="flex gap-2 overflow-x-auto pb-1">
+                <button v-for="cat in categories" :key="cat"
+                        @click="activeCategory = cat"
+                        :class="activeCategory === cat ? 'bg-amber-600 text-white' : 'bg-white text-amber-950 border border-orange-100'"
+                        class="px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all">
+                    {{ cat }}
+                </button>
+            </div>
+            <div>
+                <h2 class="text-sm font-bold text-amber-900 mb-3 uppercase tracking-wider">🌟 Топ Мастера</h2>
+                <div class="flex gap-4 overflow-x-auto pb-2">
+                    <div v-for="master in masters" :key="master.id"
+                         @click="openMasterProfile(master.id)"
+                         class="bg-white p-3 rounded-2xl border border-orange-100 flex flex-col items-center text-center min-w-[120px] cursor-pointer active:scale-95 transition-transform shadow-sm">
+                        <img :src="master.avatar" :alt="master.name" class="w-12 h-12 rounded-full object-cover ring-2 ring-amber-500" />
+                        <span class="font-bold text-xs mt-2 text-amber-950">{{ master.name }}</span>
+                        <span class="text-[10px] text-stone-500">{{ master.category }}</span>
+                        <span class="text-xs font-bold text-amber-500 mt-1">★ {{ master.rating }}</span>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h2 class="text-sm font-bold text-amber-900 mb-3 uppercase tracking-wider">🥐 Свежая витрина</h2>
+                <div class="grid grid-cols-2 gap-3">
+                    <div v-for="product in filteredProducts" :key="product.id" class="bg-white rounded-2xl overflow-hidden border border-orange-100 flex flex-col justify-between shadow-sm">
+                        <div class="relative cursor-pointer" @click="openMasterProfile(product.masterId)">
+                            <img :src="product.image" :alt="product.title" class="w-full h-28 object-cover" />
+                            <span class="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
+                                👤 {{ getMasterName(product.masterId) }}
+                            </span>
+                        </div>
+                        <div class="p-3 flex-1 flex flex-col justify-between space-y-2">
+                            <div>
+                                <h3 class="font-bold text-xs text-amber-950 truncate">{{ product.title }}</h3>
+                                <p class="text-[11px] text-stone-500 line-clamp-2 mt-0.5">{{ product.description }}</p>
+                            </div>
+                            <div class="flex items-center justify-between pt-1">
+                                <span class="font-bold text-sm text-amber-950">{{ product.price }} ₸<span class="text-[10px] font-normal text-stone-400">/{{ product.unit }}</span></span>
+                                <button @click="addToCart(product)" class="bg-stone-100 hover:bg-amber-600 text-amber-900 hover:text-white p-1.5 rounded-xl transition-colors text-xs">
+                                    ➕
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div v-if="currentTab === 'master-profile'" class="space-y-4">
+            <button @click="currentTab = 'home'" class="text-xs font-bold text-amber-600 flex items-center gap-1">
+                ← Назад в каталог
+            </button>
+            <div class="bg-white p-5 rounded-3xl border border-orange-100 text-center space-y-3 shadow-sm">
+                <img :src="selectedMaster.avatar" class="w-20 h-20 rounded-full mx-auto object-cover ring-4 ring-orange-50" />
+                <div>
+                    <h2 class="text-lg font-bold text-amber-950">{{ selectedMaster.name }}</h2>
+                    <p class="text-xs text-amber-600 font-bold uppercase tracking-wider">{{ selectedMaster.category }}</p>
+                </div>
+                <p class="text-xs text-stone-600 bg-stone-50 p-3 rounded-xl italic">{{ selectedMaster.bio }}</p>
+                <button @click="currentTab = 'chat'" class="w-full bg-amber-950 text-white py-2.5 rounded-xl text-xs font-bold active:scale-95 transition-transform">
+                    💬 Начать прямые переговоры о цене
+                </button>
+            </div>
+            <div>
+                <h3 class="font-bold text-sm text-amber-900 mb-2">Ассортимент мастера:</h3>
+                <div class="space-y-2">
+                    <div v-for="product in masterProducts" :key="product.id" class="bg-white p-2 rounded-xl border border-orange-100 flex gap-3 items-center shadow-sm">
+                        <img :src="product.image" class="w-14 h-14 rounded-lg object-cover" />
+                        <div class="flex-1">
+                            <h4 class="font-bold text-xs text-amber-950">{{ product.title }}</h4>
+                            <p class="text-xs text-amber-600 font-bold">{{ product.price }} ₸ / {{ product.unit }}</p>
+                        </div>
+                        <button @click="addToCart(product)" class="bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">
+                            + Купить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div v-if="currentTab === 'chat'" class="h-[calc(100vh-160px)] flex flex-col justify-between bg-white rounded-2xl border border-orange-100 overflow-hidden shadow-sm">
+            <div class="bg-orange-50 p-3 border-b border-orange-100 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                <span class="font-bold text-xs text-amber-950">{{ chatData.masterName }}</span>
+            </div>
+            <div class="flex-1 p-4 overflow-y-auto space-y-3 bg-stone-50/50">
+                <div v-for="(msg, i) in chatData.messages" :key="i" class="flex flex-col" :class="msg.sender === 'user' ? 'items-end' : 'items-start'">
+                    <div :class="msg.sender === 'user' ? 'bg-amber-600 text-white rounded-br-none' : 'bg-white text-amber-950 rounded-bl-none border border-orange-100'" class="max-w-[85%] rounded-xl px-3 py-2 text-xs shadow-sm">
+                        {{ msg.text }}
+                    </div>
+                    <span class="text-[9px] text-stone-400 mt-0.5 px-1">{{ msg.time }}</span>
+                </div>
+            </div>
+            <form @submit.prevent="sendMessage" class="p-2 border-t border-orange-100 flex gap-2 bg-white">
+                <input type="text" placeholder="Напишите свою цену или состав заказа..." v-model="typedMessage" class="flex-1 text-xs bg-stone-50 border border-orange-100 px-3 py-2 rounded-xl focus:outline-none" />
+                <button type="submit" class="bg-amber-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Отправить</button>
+            </form>
+        </div>
+        <div v-if="currentTab === 'cart'" class="space-y-4">
+            <div v-if="cart.length === 0" class="text-center py-16 space-y-3">
+                <div class="text-4xl">🧺</div>
+                <h3 class="font-bold text-sm text-amber-950">Корзина пуста</h3>
+                <p class="text-xs text-stone-400 max-w-[200px] mx-auto">Добавьте домашние лакомства со страницы Обзора.</p>
+            </div>
+            <div v-else class="space-y-4">
+                <div class="space-y-2">
+                    <div v-for="item in cart" :key="item.id" class="bg-white p-3 rounded-xl border border-orange-100 flex justify-between items-center shadow-sm">
+                        <div>
+                          <h4 class="font-bold text-xs text-amber-950">{{ item.title }}</h4>
+                          <p class="text-xs text-amber-600 font-bold">{{ item.price * item.quantity }} ₸</p>
+                        </div>
+                        <div class="flex items-center gap-2 bg-stone-100 rounded-lg p-1">
+                          <button @click="updateQty(item.id, -1)" class="px-2 font-bold text-xs text-amber-950">-</button>
+                          <span class="text-xs font-bold text-amber-950">{{ item.quantity }}</span>
+                          <button @click="updateQty(item.id, 1)" class="px-2 font-bold text-xs text-amber-950">+</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-orange-100 space-y-3 shadow-sm">
+                    <h3 class="font-bold text-xs text-amber-950 uppercase tracking-wider">Способ получения</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                      <button @click="deliveryMethod = 'delivery'" :class="deliveryMethod === 'delivery' ? 'bg-amber-950 text-white' : 'bg-transparent text-stone-600 border border-stone-200'" class="py-2 rounded-xl text-xs font-bold">🚗 Доставка</button>
+                      <button @click="deliveryMethod = 'pickup'" :class="deliveryMethod === 'pickup' ? 'bg-amber-950 text-white' : 'bg-transparent text-stone-600 border border-stone-200'" class="py-2 rounded-xl text-xs font-bold">🏃 Самовывоз</button>
+                    </div>
+                    <input type="text" :placeholder="deliveryMethod === 'delivery' ? 'Введите ваш адрес доставки' : 'Укажите желаемое время самовывоза'" class="w-full text-xs bg-stone-50 border border-orange-100 p-2.5 rounded-xl focus:outline-none" />
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-orange-100 space-y-3 shadow-sm">
+                    <div class="flex justify-between items-center text-xs font-bold text-amber-950">
+                      <span>Сумма к оплате:</span>
+                      <span class="text-base text-amber-600">{{ totalCartPrice }} ₸</span>
+                    </div>
+                    <button @click="checkout" class="w-full bg-amber-600 text-white py-3 rounded-xl font-bold text-xs tracking-wide">🚀 Отправить заказ на согласование</button>
+                </div>
+            </div>
+        </div>
+        <div v-if="currentTab === 'profile'" class="space-y-4">
+            <div class="bg-white p-5 rounded-3xl border border-orange-100 text-center space-y-2 shadow-sm">
+                <div class="w-14 h-14 rounded-full bg-orange-100 text-amber-950 text-xl flex items-center justify-center font-bold mx-auto">БМ</div>
+                <div>
+                  <h3 class="font-bold text-sm text-amber-950">Бауыржан Муратов</h3>
+                  <p class="text-xs text-stone-400">+7 (707) 123-45-67</p>
+                </div>
+            </div>
+            <div class="bg-amber-50 border border-amber-200 p-4 rounded-2xl text-center">
+                <p class="text-xs font-semibold text-amber-900">Выпекаете крафтовый хлеб или делаете полуфабрикаты?</p>
+                <button class="mt-1.5 text-xs font-bold text-amber-600 underline">Открыть профиль Мастера на Аспаз</button>
+            </div>
+            <div class="bg-white rounded-xl border border-orange-100 divide-y divide-orange-50 text-xs text-amber-950 shadow-sm">
+                <div class="p-3 flex justify-between items-center"><span>📦 Мои договоренности и заказы</span><span class="text-stone-400">→</span></div>
+                <div class="p-3 flex justify-between items-center"><span>💳 Способы оплаты</span><span class="text-stone-400">→</span></div>
+                <div class="p-3 flex justify-between items-center"><span>⚙️ Настройки аккаунта</span><span class="text-stone-400">→</span></div>
+            </div>
+        </div>
+    </main>
+    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-orange-100 h-16 flex justify-around items-center z-50">
+        <button v-for="tab in tabs" :key="tab.id"
+                @click="currentTab = tab.id"
+                :class="(currentTab === tab.id || (tab.id === 'home' && currentTab === 'master-profile')) ? 'text-amber-600' : 'text-stone-400'"
+                class="flex flex-col items-center justify-center w-full h-full relative">
+            <span class="text-xl">{{ tab.icon }}</span>
+            <span class="text-xs font-semibold mt-0.5">{{ tab.label }}</span>
+            <span v-if="tab.badge && cartCount > 0" class="absolute top-2 right-6 bg-amber-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {{ cartCount }}
+            </span>
+        </button>
+    </nav>
+</div>
+<script>
+  const { createApp } = Vue;
+  createApp({
+    data() {
+      return {
+        currentTab: 'home',
+        selectedMasterId: null,
+        searchQuery: '',
+        activeCategory: 'Все',
+        deliveryMethod: 'delivery',
+        typedMessage: '',
+        
+        titles: { home: 'Аспаз Мастер', chat: 'Переговоры', cart: 'Корзина', profile: 'Кабинет' },
+        categories: ['Все', 'Пекари', 'Мясники', 'Полуфабрикаты'],
+        tabs: [
+          { id: 'home', label: 'Обзор', icon: '🏪' },
+          { id: 'chat', label: 'Чат', icon: '💬' },
+          { id: 'cart', label: 'Корзина', icon: '🛒', badge: true },
+          { id: 'profile', label: 'Профиль', icon: '👤' },
+        ],
+        
+        // Мок-данные встроенные внутрь
+        masters: [
+          { id: 1, name: "Ахмет", category: "Пекари", avatar: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&q=80&w=120", rating: 4.9, bio: "Пекарь в третьем поколении. Готовлю только на натуральной закваске." },
+          { id: 2, name: "Марат", category: "Мясники", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120", rating: 5.0, bio: "Свежее халяль мясо прямо с пастбищ. Ручная честная разделка." }
+        ],
+        products: [
+          { id: 101, masterId: 1, title: "Тандырный нан (хрустящий)", price: 350, unit: "шт", category: "Пекари", image: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=400", description: "Горячий, пышный хлеб прямо из печи с кунжутом." },
+          { id: 102, masterId: 1, title: "Домашние баурсаки", price: 1800, unit: "кг", category: "Пекари", image: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=400", description: "Золотистые, воздушные баурсаки по домашнему секрету." },
+          { id: 103, masterId: 2, title: "Домашний Казы (элитный)", price: 4500, unit: "кг", category: "Мясники", image: "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?auto=format&fit=crop&q=80&w=400", description: "Натуральная конина, идеальный баланс мяса и жира." },
+          { id: 104, masterId: 2, title: "Манты замороженные (Говядина)", price: 2800, unit: "кг", category: "Полуфабрикаты", image: "https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&q=80&w=400", description: "Рубленый фарш с луком, тонкое тесто. Ручная лепка." }
+        ],
+        chatData: {
+          masterName: "Ахмет (Пекарь)",
+          messages: [
+            { sender: "master", text: "Салам! Что бы вы хотели заказать на субботу?", time: "10:30" },
+            { sender: "user", text: "Здравствуйте! Мне нужно 20 тандырных нанов к 12:00. Сделаете скидку за объем?", time: "10:32" },
+            { sender: "master", text: "Конечно, сделаю по 300 ₸ вместо 350 ₸. Обсудим доставку?", time: "10:35" }
+          ]
+        },
+        cart: []
+      }
+    },
+    computed: {
+      filteredProducts() {
+        return this.products.filter(p => {
+          const matchSearch = p.title.toLowerCase().includes(this.searchQuery.toLowerCase()) || p.description.toLowerCase().includes(this.searchQuery.toLowerCase());
+          const matchCategory = this.activeCategory === 'Все' || p.category === this.activeCategory;
+          return matchSearch && matchCategory;
+        });
+      },
+      selectedMaster() {
+        return this.masters.find(m => m.id === this.selectedMasterId);
+      },
+      masterProducts() {
+        return this.products.filter(p => p.masterId === this.selectedMasterId);
+      },
+      cartCount() {
+        return this.cart.reduce((sum, item) => sum + item.quantity, 0);
+      },
+      totalCartPrice() {
+        return this.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      }
+    },
+    methods: {
+      getMasterName(id) {
+        return this.masters.find(m => m.id === id)?.name || 'Мастер';
+      },
+      openMasterProfile(id) {
+        this.selectedMasterId = id;
+        this.currentTab = 'master-profile';
+      },
+      addToCart(product) {
+        const exact = this.cart.find(i => i.id === product.id);
+        if (exact) {
+          exact.quantity++;
+        } else {
+          this.cart.push({ ...product, quantity: 1 });
+        }
+      },
+      updateQty(id, delta) {
+        const item = this.cart.find(i => i.id === id);
+        if (item) {
+          item.quantity += delta;
+          if (item.quantity <= 0) {
+            this.cart = this.cart.filter(i => i.id !== id);
+          }
+        }
+      },
+      sendMessage() {
+        if (!this.typedMessage.trim()) return;
+        this.chatData.messages.push({
+          sender: 'user',
+          text: this.typedMessage,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+        this.typedMessage = '';
+      },
+      checkout() {
+        alert(`Заказ на сумму ${this.totalCartPrice} ₸ отправлен! Мастер получил уведомление.`);
+        this.cart = [];
+      }
+    }
+  }).mount('#app');
+</script>
+</body>
+</html>
